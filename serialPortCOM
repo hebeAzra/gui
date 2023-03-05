@@ -1,0 +1,144 @@
+// Connect / Disconnect serial Port
+ImGui::Begin("Serial Port");
+
+static bool connected = false; // Track connection status
+static std::string port_name = "COM1"; // Change to the appropriate port name for your system
+
+// Display connection status with a colored label
+ImGui::Text("Status:");
+if (connected) {
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 0, 1)); // Green
+    ImGui::Text("Connected");
+    ImGui::PopStyleColor();
+} else {
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 0, 0, 1)); // Red
+    ImGui::Text("Disconnected");
+    ImGui::PopStyleColor();
+}
+
+// Button to connect or disconnect the port
+if (connected) {
+    if (ImGui::Button("Disconnect")) {
+        // Code to disconnect the serial port goes here
+        connected = false;
+    }
+} else {
+    if (ImGui::Button("Connect")) {
+        // Code to connect to the serial port goes here
+        connected = true;
+    }
+}
+
+// Input box to change the port name
+ImGui::InputText("Port Name", &port_name);
+
+ImGui::End();
+/***************************************************************************************
+//Using ImGui and the serial library in C++ to read and write any serial port connection present in the application
+****************************************************************************************/
+#include <imgui.h>
+#include <Serial.h> // assuming you have installed the Serial library
+
+// global variables
+Serial serial;
+char receivedData[256];
+bool isConnected = false;
+
+// function to list all available serial ports
+void listSerialPorts(std::vector<std::string>& portList) {
+    for (int i = 0; i < 256; i++) {
+        std::string portName = "COM" + std::to_string(i);
+        try {
+            serial::Serial testPort(portName, 115200);
+            testPort.close();
+            portList.push_back(portName);
+        }
+        catch (serial::IOException) {}
+    }
+}
+
+// ImGui function to display the serial port connection panel
+void serialPortPanel() {
+    static bool showSerialPortPanel = false;
+    if (ImGui::Button("Serial Port")) {
+        showSerialPortPanel = !showSerialPortPanel;
+    }
+    if (showSerialPortPanel) {
+        ImGui::Begin("Serial Port Connection");
+        static std::vector<std::string> portList;
+        static int selectedPortIndex = 0;
+        if (ImGui::Button("Refresh Port List")) {
+            portList.clear();
+            listSerialPorts(portList);
+        }
+        if (portList.size() > 0) {
+            const char** portNames = new const char*[portList.size()];
+            for (int i = 0; i < portList.size(); i++) {
+                portNames[i] = portList[i].c_str();
+            }
+            ImGui::Combo("Port", &selectedPortIndex, portNames, portList.size());
+            delete[] portNames;
+        }
+        static int baudRate = 115200;
+        ImGui::InputInt("Baud Rate", &baudRate);
+        if (ImGui::Button("Connect")) {
+            try {
+                serial.setPort(portList[selectedPortIndex]);
+                serial.setBaudrate(baudRate);
+                serial.open();
+                isConnected = true;
+            }
+            catch (serial::IOException) {
+                isConnected = false;
+            }
+        }
+        if (ImGui::Button("Disconnect")) {
+            serial.close();
+            isConnected = false;
+        }
+        if (isConnected) {
+            ImGui::Text("Connected");
+            int availableBytes = serial.available();
+            if (availableBytes > 0) {
+                serial.read(receivedData, availableBytes);
+                ImGui::Text("Received: %s", receivedData);
+            }
+            static char sendData[256] = "";
+            ImGui::InputText("Send Data", sendData, 256);
+            if (ImGui::Button("Send")) {
+                serial.write(sendData);
+            }
+        }
+        else {
+            ImGui::Text("Disconnected");
+        }
+        ImGui::End();
+    }
+}
+
+// example main loop using ImGui
+int main() {
+    // initialize ImGui
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    ImGui::StyleColorsDark();
+    // main loop
+    while (true) {
+        // start a new ImGui frame
+        ImGui::NewFrame();
+        // render the serial port panel
+        serialPortPanel();
+        // render ImGui
+        ImGui::Render();
+        // example code for using the serial port connection
+        if (isConnected) {
+            // read data from the serial port
+            int availableBytes = serial.available();
+            if (availableBytes > 0) {
+                serial.read(receivedData, availableBytes);
+                // process received data here
+            }
+            // write data to the serial port
+            
+           
