@@ -1,0 +1,155 @@
+#include <Windows.h>
+#include <iostream>
+#include <vector>
+#include <string>
+
+// Function to list available COM ports
+std::vector<std::string> list_serial_ports() {
+    std::vector<std::string> ports;
+
+    // Enumerate all available COM ports
+    for (int i = 1; i <= 256; i++) {
+        std::string port = "COM" + std::to_string(i);
+        HANDLE hComm = CreateFile(port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (hComm != INVALID_HANDLE_VALUE) {
+            ports.push_back(port);
+            CloseHandle(hComm);
+        }
+    }
+
+    return ports;
+}
+
+int main() {
+    // List available COM ports
+    std::vector<std::string> ports = list_serial_ports();
+    for (const auto& port : ports) {
+        std::cout << port << std::endl;
+    }
+
+    // Connect to a selected port
+    std::string selected_port = "COM3"; // User-selected port
+    HANDLE hComm = CreateFile(selected_port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (hComm == INVALID_HANDLE_VALUE) {
+        std::cerr << "Failed to connect to port " << selected_port << std::endl;
+        return 1;
+    }
+
+    // Set serial port parameters
+    DCB dcb;
+    dcb.DCBlength = sizeof(dcb);
+    if (!GetCommState(hComm, &dcb)) {
+        std::cerr << "Failed to get port parameters" << std::endl;
+        return 1;
+    }
+    dcb.BaudRate = CBR_9600; // Set baud rate
+    dcb.fParity = FALSE; // No parity
+    dcb.fBinary = TRUE; // Binary mode
+    if (!SetCommState(hComm, &dcb)) {
+        std::cerr << "Failed to set port parameters" << std::endl;
+        return 1;
+    }
+
+    // Read data from the serial port
+    char buffer[256];
+    DWORD bytesRead;
+    if (!ReadFile(hComm, buffer, sizeof(buffer), &bytesRead, NULL)) {
+        std::cerr << "Failed to read data" << std::endl;
+        return 1;
+    }
+    std::cout << "Read " << bytesRead << " bytes: " << buffer << std::endl;
+
+    // Write data to the serial port
+    char data[] = "Hello, world!";
+    DWORD bytesWritten;
+    if (!WriteFile(hComm, data, sizeof(data), &bytesWritten, NULL)) {
+        std::cerr << "Failed to write data" << std::endl;
+        return 1;
+    }
+    std::cout << "Wrote " << bytesWritten << " bytes: " << data << std::endl;
+
+    // Close the serial port
+    CloseHandle(hComm);
+
+    return 0;
+}
+
+/************************************************************************************************
+//Here's an example implementation of the code in an ImGui application that allows the user to choose a COM port from a drop-down list, 
+connect to it, and display a visual indicator of the connection status:
+Note that this code only shows how to connect to a selected COM port and display a visual indicator of the connection status. 
+It does not include code for reading or writing data to the serial port, as that would depend on the specific use case.
+************************************************************************************************/
+#include <Windows.h>
+#include <vector>
+#include <string>
+#include <imgui.h>
+
+// Function to list available COM ports
+std::vector<std::string> list_serial_ports() {
+    std::vector<std::string> ports;
+
+    // Enumerate all available COM ports
+    for (int i = 1; i <= 256; i++) {
+        std::string port = "COM" + std::to_string(i);
+        HANDLE hComm = CreateFile(port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (hComm != INVALID_HANDLE_VALUE) {
+            ports.push_back(port);
+            CloseHandle(hComm);
+        }
+    }
+
+    return ports;
+}
+
+int main() {
+    // Initialize ImGui
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+
+    // Create a window
+    bool show_window = true;
+    ImGui::SetNextWindowSize(ImVec2(400, 200), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Serial Port Connection", &show_window);
+
+    // List available COM ports
+    std::vector<std::string> ports = list_serial_ports();
+    static int selected_port_index = 0;
+    if (ImGui::Combo("Port", &selected_port_index, ports)) {
+        // Connect to the selected port
+        std::string selected_port = ports[selected_port_index];
+        HANDLE hComm = CreateFile(selected_port.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (hComm == INVALID_HANDLE_VALUE) {
+            std::cerr << "Failed to connect to port " << selected_port << std::endl;
+        } else {
+            // Set serial port parameters
+            DCB dcb;
+            dcb.DCBlength = sizeof(dcb);
+            if (!GetCommState(hComm, &dcb)) {
+                std::cerr << "Failed to get port parameters" << std::endl;
+            } else {
+                dcb.BaudRate = CBR_9600; // Set baud rate
+                dcb.fParity = FALSE; // No parity
+                dcb.fBinary = TRUE; // Binary mode
+                if (!SetCommState(hComm, &dcb)) {
+                    std::cerr << "Failed to set port parameters" << std::endl;
+                } else {
+                    // Set connection status indicator
+                    io.WantCaptureMouse = true; // Block mouse input
+                    ImVec2 p = ImGui::GetCursorScreenPos();
+                    ImVec2 sz = ImVec2(16, ImGui::GetFontSize());
+                    ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + sz.x, p.y + sz.y), IM_COL32(50, 255, 50, 255));
+                }
+            }
+            CloseHandle(hComm);
+        }
+    }
+
+    // Display the window
+    ImGui::End();
+    ImGui::Render();
+
+    return 0;
+}
